@@ -1,0 +1,10 @@
+mss==9.0.2
+Pillow==10.3.0
+pytesseract==0.3.13
+opencv-python==4.9.0.80
+numpy==1.26.4
+pydirectinput==1.0.4
+pydantic==2.7.1
+pydantic-settings==2.3.1
+rich==13.7.1
+anthropic==0.28.0

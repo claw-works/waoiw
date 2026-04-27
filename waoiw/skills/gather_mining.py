@@ -22,6 +22,7 @@ from waoiw.capture import capture_full, crop_region
 from waoiw.config import config
 
 from waoiw.skills.gather_mining.node_finder import find_nodes, best_node
+from waoiw.skills.gather_mining.enemy_detector import detect_enemies
 from waoiw.skills.gather_mining.flight import (
     takeoff, land, fly_to_bearing, descend_and_interact, explore_direction,
     DEFAULT_FLY_DURATION,
@@ -83,10 +84,10 @@ class GatherMining(Skill):
             # ── 有矿点：飞过去采 ───────────────────────────────────────
             if target:
                 consecutive_empty_scans = 0
-                _log(ctx, f"🪨 发现矿点 方位={target.bearing_deg:.0f}° 距离={int((target.dx**2+target.dy**2)**0.5)}px"
-                          + (" [有敌人附近，已选次优]" if target.enemy_nearby else ""))
+                dist = int((target.dx**2 + target.dy**2) ** 0.5)
+                _log(ctx, f"🪨 发现矿点 方位={target.bearing_deg:.0f}° 距离={dist}px")
 
-                # 转向并飞过去
+                # 转向飞过去
                 current_bearing = fly_to_bearing(
                     bearing=target.bearing_deg,
                     current_bearing=current_bearing,
@@ -94,22 +95,26 @@ class GatherMining(Skill):
                     jitter_deg=8.0,
                 )
 
-                # 降落 + 采集
-                _log(ctx, "⛏ 降落采集")
-                descend_and_interact()
-                gathered += 1
-                _log(ctx, f"✓ 第 {gathered} 个矿采集完成")
+                # 降落前先检测头顶血条
+                _log(ctx, "👀 降落检查是否有敌人...")
+                landing_frame = capture_full()
+                enemy_result = detect_enemies(landing_frame)
 
-                # 重新起飞
-                time.sleep(random.uniform(0.5, 1.0))
-                takeoff()
-
-            # ── 有矿点但全部有敌人：跳过，换方向 ─────────────────────
-            elif nodes:
-                skipped += len(nodes)
-                _log(ctx, f"⚠ {len(nodes)} 个矿点有敌人守卫，绕开")
-                away = (nodes[0].bearing_deg + 120 + random.uniform(-30, 30)) % 360
-                current_bearing = fly_to_bearing(away, current_bearing, jitter_deg=15.0)
+                if enemy_result.has_enemy:
+                    skipped += 1
+                    _log(ctx, f"⚠ 发现 {enemy_result.count} 个敌人血条（置信度{enemy_result.confidence:.2f}），绕开")
+                    # 偏转方向继续飞，不降落
+                    away = (target.bearing_deg + 120 + random.uniform(-30, 30)) % 360
+                    current_bearing = fly_to_bearing(away, current_bearing, jitter_deg=15.0)
+                else:
+                    # 安全，降落采集
+                    _log(ctx, "⛏ 无敌人，降落采集")
+                    descend_and_interact()
+                    gathered += 1
+                    _log(ctx, f"✓ 第 {gathered} 个矿采集完成")
+                    # 重新起飞
+                    time.sleep(random.uniform(0.5, 1.0))
+                    takeoff()
 
             # ── 小地图没有矿点：看大地图 ───────────────────────────────
             else:

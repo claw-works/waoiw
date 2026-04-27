@@ -6,6 +6,7 @@ from .registry import register, all_skills, get_skill, skill_descriptions
 
 # 导入所有具体 skill（触发 @register 装饰器）
 from . import gather_mining
+from . import combat
 
 __all__ = [
     "Skill", "SkillContext", "SkillResult",

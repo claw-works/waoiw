@@ -31,6 +31,7 @@ from waoiw.skills.gather_mining.map_reader import (
     open_map, close_map, read_player_position, suggest_explore_direction,
 )
 from waoiw.skills.gather_mining.llm_fallback import ask_llm
+from waoiw.skills.combat import run_combat
 
 
 @register
@@ -102,10 +103,17 @@ class GatherMining(Skill):
 
                 if enemy_result.has_enemy:
                     skipped += 1
-                    _log(ctx, f"⚠ 发现 {enemy_result.count} 个敌人血条（置信度{enemy_result.confidence:.2f}），绕开")
-                    # 偏转方向继续飞，不降落
-                    away = (target.bearing_deg + 120 + random.uniform(-30, 30)) % 360
-                    current_bearing = fly_to_bearing(away, current_bearing, jitter_deg=15.0)
+                    _log(ctx, f"⚠ 发现 {enemy_result.count} 个敌人（置信度{enemy_result.confidence:.2f}），先打再采")
+                    combat_result = run_combat(ctx)
+                    _log(ctx, f"⚔ {combat_result.message}")
+                    # 打完和脸后继续采集
+                    if not ctx.should_stop():
+                        _log(ctx, "⛏ 重新尝试采集")
+                        descend_and_interact()
+                        gathered += 1
+                        _log(ctx, f"✓ 第 {gathered} 个矿采集完成")
+                        time.sleep(random.uniform(0.5, 1.0))
+                        takeoff()
                 else:
                     # 安全，降落采集
                     _log(ctx, "⛏ 无敌人，降落采集")
